@@ -6,7 +6,6 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # --- 1. CONFIGURARE SUPABASE (SECURIZAT PENTRU CLOUD) ---
-# --- 1. CONFIGURARE SUPABASE (SECURIZAT PENTRU CLOUD) ---
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -84,7 +83,7 @@ class MotorLoto:
         
         valid = False
         incercari = 0
-        max_incercari = 50000 # Plasa de siguranță pentru bucle infinite
+        max_incercari = 50000 
         
         while not valid:
             incercari += 1
@@ -101,7 +100,6 @@ class MotorLoto:
             
             suma = sum(varianta)
             
-            # Verificare sumă și paritate
             suma_ok = (suma == suma_tinta) if suma_tinta else (r["suma_min"] <= suma <= r["suma_max"])
             
             if suma_ok:
@@ -178,12 +176,16 @@ else:
 
 st.write("---")
 
-# --- BARA LATERALĂ: FILTRE ȘI GENERARE ---
-with st.sidebar:
-    st.header("⚙️ Setări și Filtre")
+# --- ZONA PRINCIPALĂ DE GENERARE (Fără bară laterală) ---
+# Creăm două coloane (1 parte pentru setări, 2 părți pentru rezultat)
+# Pe telefon, aceste coloane se vor așeza automat una sub alta!
+col_setari, col_rezultat = st.columns([1, 2])
+
+with col_setari:
+    st.subheader("⚙️ Setări Generare")
     joc_selectat = st.selectbox("Alege tipul de joc:", ["Loto 6/49", "Loto 5/40", "Joker"])
     
-    st.markdown("**Filtrează Perioada de Analiză**")
+    st.markdown("**Filtrează Perioada**")
     an_selectat = st.selectbox("Anul:", [None] + list(range(2026, 1999, -1)), format_func=lambda x: "Toată Istoria" if x is None else str(x))
     
     dict_luni = {1:"Ianuarie", 2:"Februarie", 3:"Martie", 4:"Aprilie", 5:"Mai", 6:"Iunie", 
@@ -191,11 +193,8 @@ with st.sidebar:
     luna_nume = st.selectbox("Luna:", [None] + list(dict_luni.values()), format_func=lambda x: "Tot Anul" if x is None else x)
     luna_selectata = [k for k, v in dict_luni.items() if v == luna_nume][0] if luna_nume else None
 
-    st.write("---")
-    
-    # NOUA FUNCȚIONALITATE: Suma Forțată
     st.markdown("**Generare Personalizată**")
-    suma_dorita = st.number_input("Suma exactă a numerelor (Lasă 0 pt. Auto):", min_value=0, max_value=300, value=0, step=1)
+    suma_dorita = st.number_input("Suma exactă (Lasă 0 pt. Auto):", min_value=0, max_value=300, value=0, step=1)
     suma_tinta = suma_dorita if suma_dorita > 0 else None
 
     if st.button(f"🚀 Generează Varianta", use_container_width=True):
@@ -208,26 +207,27 @@ with st.sidebar:
                 verificare = MotorLoto.analiza_performanta_istorica(rezultat["numere"], rezultat["extra"], joc_selectat, luna_selectata, an_selectat)
                 st.session_state['ultima_verificare'] = verificare
                 st.session_state['ultimul_rezultat'] = rezultat
-                st.rerun()
 
-# --- PANOU CENTRAL: REZULTAT ȘI BACKTESTING ---
-if 'ultimul_rezultat' in st.session_state:
-    res = st.session_state['ultimul_rezultat']
-    verif = st.session_state['ultima_verificare']
-    
-    st.success(f"### 🎯 Varianta Generată: `{res['numere']}` " + (f" + Joker: `{res['extra']}`" if res['extra'] else ""))
-    st.markdown(f"**Suma Totală a Numerelor:** `{res['suma']}`")
-    
-    if verif:
-        titlu_perioada = f"în {dict_luni[luna_selectata]} {an_selectat}" if luna_selectata and an_selectat else (f"în anul {an_selectat}" if an_selectat else "în toată istoria")
-        st.subheader(f"🔍 Performanță în Arhiva Reală ({titlu_perioada})")
-        st.caption(f"Verificat pe un total de {verif['total']} extrageri oficiale conform filtrelor alese.")
+with col_rezultat:
+    st.subheader("🎯 Rezultatul Tău")
+    if 'ultimul_rezultat' in st.session_state:
+        res = st.session_state['ultimul_rezultat']
+        verif = st.session_state['ultima_verificare']
         
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Cat. I", verif["Cat_I"])
-        c2.metric("Cat. II", verif["Cat_II"])
-        c3.metric("Cat. III", verif["Cat_III"])
-        c4.metric("Cat. IV", verif["Cat_IV"])
+        st.success(f"### Varianta Generată: `{res['numere']}` " + (f" + Joker: `{res['extra']}`" if res['extra'] else ""))
+        st.markdown(f"**Suma Totală a Numerelor:** `{res['suma']}`")
+        
+        if verif:
+            titlu_perioada = f"în {dict_luni[luna_selectata]} {an_selectat}" if luna_selectata and an_selectat else (f"în anul {an_selectat}" if an_selectat else "în toată istoria")
+            st.caption(f"🔍 Performanță în Arhiva Reală ({titlu_perioada}) pe {verif['total']} extrageri.")
+            
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Cat. I", verif["Cat_I"])
+            c2.metric("Cat. II", verif["Cat_II"])
+            c3.metric("Cat. III", verif["Cat_III"])
+            c4.metric("Cat. IV", verif["Cat_IV"])
+    else:
+        st.info("👈 Selectează jocul, setează filtrele și apasă butonul de generare pentru a vedea varianta și performanța.")
 
 st.write("---")
 
