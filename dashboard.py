@@ -99,7 +99,6 @@ class MotorLoto:
                 varianta = sorted(random.sample(range(1, r["max"] + 1), r["n"]))
             
             suma = sum(varianta)
-            
             suma_ok = (suma == suma_tinta) if suma_tinta else (r["suma_min"] <= suma <= r["suma_max"])
             
             if suma_ok:
@@ -176,35 +175,35 @@ else:
 
 st.write("---")
 
-# --- ZONA PRINCIPALĂ DE GENERARE (Fără bară laterală) ---
-# Creăm două coloane (1 parte pentru setări, 2 părți pentru rezultat)
-# Pe telefon, aceste coloane se vor așeza automat una sub alta!
+# --- ZONA DE SETĂRI ȘI GENERARE ---
+# Folosim containere pentru a separa vizual secțiunile
 col_setari, col_rezultat = st.columns([1, 2])
+
+# Declarăm aici variabilele de timp pentru a fi accesibile butonului de generare de mai sus
+# Deși sunt vizual mai jos, Streamlit le va procesa corect
+dict_luni = {1:"Ianuarie", 2:"Februarie", 3:"Martie", 4:"Aprilie", 5:"Mai", 6:"Iunie", 
+             7:"Iulie", 8:"August", 9:"Septembrie", 10:"Octombrie", 11:"Noiembrie", 12:"Decembrie"}
 
 with col_setari:
     st.subheader("⚙️ Setări Generare")
     joc_selectat = st.selectbox("Alege tipul de joc:", ["Loto 6/49", "Loto 5/40", "Joker"])
     
-    st.markdown("**Filtrează Perioada**")
-    an_selectat = st.selectbox("Anul:", [None] + list(range(2026, 1999, -1)), format_func=lambda x: "Toată Istoria" if x is None else str(x))
-    
-    dict_luni = {1:"Ianuarie", 2:"Februarie", 3:"Martie", 4:"Aprilie", 5:"Mai", 6:"Iunie", 
-                 7:"Iulie", 8:"August", 9:"Septembrie", 10:"Octombrie", 11:"Noiembrie", 12:"Decembrie"}
-    luna_nume = st.selectbox("Luna:", [None] + list(dict_luni.values()), format_func=lambda x: "Tot Anul" if x is None else x)
-    luna_selectata = [k for k, v in dict_luni.items() if v == luna_nume][0] if luna_nume else None
-
-    st.markdown("**Generare Personalizată**")
     suma_dorita = st.number_input("Suma exactă (Lasă 0 pt. Auto):", min_value=0, max_value=300, value=0, step=1)
     suma_tinta = suma_dorita if suma_dorita > 0 else None
 
+    # Butonul de generare - va folosi filtrele de timp definite în secțiunea de analiză de mai jos
     if st.button(f"🚀 Generează Varianta", use_container_width=True):
         with st.spinner('Căutăm combinația perfectă...'):
-            rezultat = MotorLoto.genereaza_varianta(joc_selectat, luna_selectata, an_selectat, suma_tinta)
+            # Notă: an_selectat și luna_selectata sunt declarate mai jos, dar disponibile prin rerun-ul Streamlit
+            an_val = st.session_state.get('an_filtre', None)
+            luna_val = st.session_state.get('luna_filtre', None)
+            
+            rezultat = MotorLoto.genereaza_varianta(joc_selectat, luna_val, an_val, suma_tinta)
             
             if "eroare" in rezultat:
                 st.error(rezultat["eroare"])
             else:
-                verificare = MotorLoto.analiza_performanta_istorica(rezultat["numere"], rezultat["extra"], joc_selectat, luna_selectata, an_selectat)
+                verificare = MotorLoto.analiza_performanta_istorica(rezultat["numere"], rezultat["extra"], joc_selectat, luna_val, an_val)
                 st.session_state['ultima_verificare'] = verificare
                 st.session_state['ultimul_rezultat'] = rezultat
 
@@ -218,25 +217,36 @@ with col_rezultat:
         st.markdown(f"**Suma Totală a Numerelor:** `{res['suma']}`")
         
         if verif:
-            titlu_perioada = f"în {dict_luni[luna_selectata]} {an_selectat}" if luna_selectata and an_selectat else (f"în anul {an_selectat}" if an_selectat else "în toată istoria")
-            st.caption(f"🔍 Performanță în Arhiva Reală ({titlu_perioada}) pe {verif['total']} extrageri.")
-            
+            st.caption(f"🔍 Performanță verificată pe {verif['total']} extrageri conform filtrelor de mai jos.")
             c1, c2, c3, c4 = st.columns(4)
             c1.metric("Cat. I", verif["Cat_I"])
             c2.metric("Cat. II", verif["Cat_II"])
             c3.metric("Cat. III", verif["Cat_III"])
             c4.metric("Cat. IV", verif["Cat_IV"])
     else:
-        st.info("👈 Selectează jocul, setează filtrele și apasă butonul de generare pentru a vedea varianta și performanța.")
+        st.info("👈 Configurează setările și apasă butonul pentru a genera o variantă.")
 
 st.write("---")
 
-# --- PANOU INFERIOR: STATISTICI AVANSATE ---
+# --- PANOU DE ANALIZĂ ȘI STATISTICI ---
 st.subheader(f"📊 Analiza Numerelor: {joc_selectat}")
+
+# Mutăm aici filtrele de An și Lună, deasupra tabelului
+col_an, col_luna = st.columns(2)
+with col_an:
+    an_selectat = st.selectbox("Filtrează după An:", [None] + list(range(2026, 1999, -1)), 
+                               format_func=lambda x: "Toată Istoria" if x is None else str(x), key='an_filtre')
+with col_luna:
+    luna_nume = st.selectbox("Filtrează după Lună:", [None] + list(dict_luni.values()), 
+                             format_func=lambda x: "Tot Anul" if x is None else x, key='luna_filtre_nume')
+    luna_selectata = [k for k, v in dict_luni.items() if v == luna_nume][0] if luna_nume else None
+    # Salvăm în session_state pentru a fi accesibil motorului de generare de sus
+    st.session_state['luna_filtre'] = luna_selectata
+
 hot, cold, total, neiesite, _ = MotorLoto.obtine_statistici_avansate(joc_selectat, luna_selectata, an_selectat)
 
 if total > 0:
-    st.write(f"S-au analizat **{total} de extrageri** pentru filtrele selectate.")
+    st.caption(f"S-au analizat **{total} de extrageri** pentru perioada selectată.")
     
     col_h, col_c = st.columns(2)
     with col_h:
@@ -252,17 +262,16 @@ if total > 0:
     if neiesite:
         st.warning(f"⚠️ **Numere care NU s-au extras deloc în această perioadă:** {', '.join(map(str, neiesite))}")
 else:
-    st.info("Nicio extragere găsită pentru perioada selectată. Modifică filtrele din stânga.")
+    st.info("Nicio extragere găsită pentru filtrele selectate.")
 
 st.write("---")
 
 # --- TOP CÂȘTIGURI ISTORICE ---
 st.subheader("🏆 Cele mai mari câștiguri din istoria Loteriei Române")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.info("**Joker**\n\n💰 **65.969.447,56 lei** (~12,93 mil. €)\n\n📅 19 Aprilie 2026\n\n📍 București (Bilet jucat online)")
-with col2:
-    st.success("**Loto 6/49**\n\n💰 **50.096.011,76 lei** (~10,10 mil. €)\n\n📅 25 Iunie 2023\n\n📍 București (Sectorul 6)")
-with col3:
-    st.warning("**Loto 5/40**\n\n💰 **1.490.953,40 lei**\n\n📅 13 Ianuarie 2019\n\n📍 Târgu Mureș")
+c_win1, c_win2, c_win3 = st.columns(3)
+with c_win1:
+    st.info("**Joker**\n\n65.969.447 lei\n\n19 Apr 2026")
+with c_win2:
+    st.success("**Loto 6/49**\n\n50.096.011 lei\n\n25 Iun 2023")
+with c_win3:
+    st.warning("**Loto 5/40**\n\n1.490.953 lei\n\n13 Ian 2019")
