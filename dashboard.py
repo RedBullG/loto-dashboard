@@ -6,8 +6,9 @@ from datetime import datetime
 from supabase import create_client, Client
 
 # --- 1. CONFIGURARE SUPABASE (SECURIZAT PENTRU CLOUD) ---
-SUPABASE_URL = st.secrets["https://kglsugtcakuwumblrhuf.supabase.co"]
-SUPABASE_KEY = st.secrets["sb_publishable_zj1vLQvLWLH2v0CkRRrCDQ_cv_5lTqk"]
+# --- 1. CONFIGURARE SUPABASE (SECURIZAT PENTRU CLOUD) ---
+SUPABASE_URL = st.secrets["SUPABASE_URL"]
+SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def formateaza_data_ro(data_iso):
