@@ -42,7 +42,8 @@ class MotorLoto:
     @staticmethod
     def obtine_date_brute(tip_joc):
         try:
-            raspuns = supabase.table('rezultate_oficiale').select('*').eq('tip_joc', tip_joc).execute()
+            # Am adăugat .limit(10000) pentru a extrage toată arhiva, ocolind limita implicită de 1000 a Supabase
+            raspuns = supabase.table('rezultate_oficiale').select('*').eq('tip_joc', tip_joc).limit(10000).execute()
             if not raspuns.data: return pd.DataFrame()
             df = pd.DataFrame(raspuns.data)
             df['data_extragere'] = pd.to_datetime(df['data_extragere'], errors='coerce')
@@ -54,6 +55,9 @@ class MotorLoto:
     def obtine_statistici_avansate(tip_joc, luna=None, an=None):
         df = MotorLoto.obtine_date_brute(tip_joc)
         if df.empty: return None, None, 0, [], None
+        
+        # Filtrare suplimentară de siguranță pentru a elimina datele invalide
+        df = df.dropna(subset=['data_extragere'])
         
         if an: df = df[df['data_extragere'].dt.year == an]
         if luna: df = df[df['data_extragere'].dt.month == luna]
@@ -92,6 +96,45 @@ class MotorLoto:
                     res = {"numere": varianta, "suma": suma, "extra": [random.randint(1, r["extra_max"])] if r.get("extra") else []}
                     return res
         return {"eroare": "Nu s-a găsit variantă. Încearcă altă sumă."}
+
+    @staticmethod
+    def analiza_performanta_istorica(numere_gen, extra_gen, tip_joc, luna=None, an=None):
+        try:
+            # Am adăugat .limit(10000) și aici pentru backtesting complet
+            raspuns = supabase.table('rezultate_oficiale').select('*').eq('tip_joc', tip_joc).limit(10000).execute()
+            if not raspuns.data:
+                return None
+            
+            df = pd.DataFrame(raspuns.data)
+            df['data_extragere'] = pd.to_datetime(df['data_extragere'], errors='coerce')
+            df = df.dropna(subset=['data_extragere'])
+            
+            if an: df = df[df['data_extragere'].dt.year == an]
+            if luna: df = df[df['data_extragere'].dt.month == luna]
+            
+            arhiva = df.to_dict('records')
+            stats = {"Cat_I": 0, "Cat_II": 0, "Cat_III": 0, "Cat_IV": 0, "total": len(arhiva)}
+            
+            for ex in arhiva:
+                potriviri = len(set(numere_gen) & set(ex['numere']))
+                
+                if tip_joc == "Loto 6/49":
+                    if potriviri == 6: stats["Cat_I"] += 1
+                    elif potriviri == 5: stats["Cat_II"] += 1
+                    elif potriviri == 4: stats["Cat_III"] += 1
+                    elif potriviri == 3: stats["Cat_IV"] += 1
+                elif tip_joc == "Loto 5/40":
+                    if potriviri >= 5: stats["Cat_I"] += 1
+                    elif potriviri == 4: stats["Cat_II"] += 1
+                elif tip_joc == "Joker":
+                    extra_match = extra_gen[0] == ex['extra'][0] if extra_gen and ex['extra'] else False
+                    if potriviri == 5 and extra_match: stats["Cat_I"] += 1
+                    elif potriviri == 5: stats["Cat_II"] += 1
+                    elif potriviri == 4 and extra_match: stats["Cat_III"] += 1
+                    elif potriviri == 4: stats["Cat_IV"] += 1
+            return stats
+        except:
+            return None
 
 # --- 3. INTERFAȚĂ ---
 st.set_page_config(page_title="Analiză Statistică Loto", page_icon="🎲", layout="wide")
@@ -132,7 +175,6 @@ with col_set:
     
     st.info(f"💡 Suma optimă {joc_selectat}: **{MotorLoto.REGULI[joc_selectat]['info_suma']}**")
     
-    # Aici este tooltip-ul pentru informații suplimentare
     suma_dorita = st.number_input(
         "Suma exactă (Lasă 0 pt. Auto):", 
         min_value=0, 
@@ -154,6 +196,19 @@ with col_res:
         else:
             st.success(f"### Varianta: `{rg['numere']}` " + (f" + Joker: `{rg['extra']}`" if rg['extra'] else ""))
             st.markdown(f"**Suma:** `{rg['suma']}`")
+            
+            verif = MotorLoto.analiza_performanta_istorica(
+                rg["numere"], rg["extra"], joc_selectat, 
+                st.session_state.get('luna_f', None), 
+                st.session_state.get('an_f', None)
+            )
+            if verif:
+                st.caption(f"🔍 Performanță verificată pe {verif['total']} extrageri conform filtrelor alese mai jos.")
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Cat. I", verif["Cat_I"])
+                c2.metric("Cat. II", verif["Cat_II"])
+                c3.metric("Cat. III", verif["Cat_III"])
+                c4.metric("Cat. IV", verif["Cat_IV"])
 
 st.divider()
 
@@ -172,7 +227,7 @@ with col_inf:
                 aparitii = df_brut[df_brut['numere'].apply(lambda x: n in x)]
                 if not aparitii.empty:
                     an_top = aparitii['data_extragere'].dt.year.value_counts().idxmax()
-                    st.write(f"✅ Numărul **{n}**: extras de **{len(aparitii)}** ori. Cea mai activă perioadă: **{an_top}**.")
+                    st.write(f"✅ Numărul **{n}**: extras de **{len(aparitii)}** ori. Cea mai activă perioadă: **{int(an_top)}**.")
                 else:
                     st.write(f"❌ Numărul **{n}**: nu a fost extras în baza de date selectată.")
 
@@ -181,7 +236,9 @@ st.divider()
 # --- STATISTICI ---
 st.subheader(f"📊 Top Numere: {joc_selectat}")
 c_an, c_luna = st.columns(2)
-with c_an: an_f = st.selectbox("An:", [None] + list(range(2026, 2020, -1)), key='an_f')
+
+# Am extins înapoi lista de ani până în 2000!
+with c_an: an_f = st.selectbox("An:", [None] + list(range(2026, 1999, -1)), key='an_f')
 with c_luna: 
     luna_n = st.selectbox("Lună:", [None] + list(dict_luni.values()), key='ln_n')
     luna_f = [k for k, v in dict_luni.items() if v == luna_n][0] if luna_n else None
@@ -190,8 +247,13 @@ with c_luna:
 hot, cold, tot, nei, _ = MotorLoto.obtine_statistici_avansate(joc_selectat, luna_f, an_f)
 
 if tot > 0:
+    st.caption(f"S-au analizat **{tot} de extrageri** pentru perioada selectată.")
     ch, cc = st.columns(2)
-    with ch: st.table(pd.DataFrame({"Număr": hot.index, "Frecvență": hot.values}))
-    with cc: st.table(pd.DataFrame({"Număr": cold.index, "Frecvență": cold.values}))
+    with ch: 
+        st.write("🔥 **Top 10 Cel Mai Des Extrase**")
+        st.dataframe(pd.DataFrame({"Număr": hot.index, "Frecvență": hot.values}), use_container_width=True, hide_index=True)
+    with cc: 
+        st.write("❄️ **Top 10 Cel Mai Rar Extrase**")
+        st.dataframe(pd.DataFrame({"Număr": cold.index, "Frecvență": cold.values}), use_container_width=True, hide_index=True)
 else:
     st.warning("Nu există date pentru filtrele selectate.")
