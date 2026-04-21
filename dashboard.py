@@ -9,13 +9,27 @@ SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def parse_data_smart(data_str):
+    """Cititor universal de date (rezolvă conflictele între formatul ISO și cel European)"""
+    try:
+        d_str = str(data_str).split('T')[0]
+        if '.' in d_str:
+            return pd.to_datetime(d_str, format='%d.%m.%Y', errors='coerce')
+        elif '/' in d_str:
+            return pd.to_datetime(d_str, format='%d/%m/%Y', errors='coerce')
+        else:
+            return pd.to_datetime(d_str, format='%Y-%m-%d', errors='coerce')
+    except:
+        return pd.NaT
+
 def formateaza_data_ro(data_iso):
     try:
         luni_ro = {1:"Ianuarie", 2:"Februarie", 3:"Martie", 4:"Aprilie", 5:"Mai", 6:"Iunie", 
                    7:"Iulie", 8:"August", 9:"Septembrie", 10:"Octombrie", 11:"Noiembrie", 12:"Decembrie"}
-        # dayfirst=True repara afisarea eronata (ex: 12.02 in loc de Dec 2)
-        d = pd.to_datetime(str(data_iso).split('T')[0], dayfirst=True)
-        return f"{d.day} {luni_ro[d.month]} {d.year}"
+        d = parse_data_smart(data_iso)
+        if pd.notna(d):
+            return f"{d.day} {luni_ro[d.month]} {d.year}"
+        return data_iso
     except:
         return data_iso
 
@@ -41,16 +55,36 @@ class MotorLoto:
 
     @staticmethod
     def obtine_date_brute(tip_joc):
+        """Preluare inteligentă cu paginare pentru a ocoli limita de 1000 de rânduri a Supabase"""
         try:
-            raspuns = supabase.table('rezultate_oficiale').select('*').eq('tip_joc', tip_joc).limit(10000).execute()
-            if not raspuns.data: return pd.DataFrame()
-            df = pd.DataFrame(raspuns.data)
+            all_data = []
+            start = 0
+            step = 1000
             
-            # EXTREM DE IMPORTANT: dayfirst=True recupereaza toti anii pierduti (2023, 2022 etc)
-            df['data_extragere'] = pd.to_datetime(df['data_extragere'], dayfirst=True, errors='coerce')
-            df = df.dropna(subset=['data_extragere']) # Curatam erorile
+            while True:
+                raspuns = supabase.table('rezultate_oficiale').select('*').eq('tip_joc', tip_joc).order('data_extragere', desc=True).range(start, start + step - 1).execute()
+                
+                if not raspuns.data:
+                    break
+                    
+                all_data.extend(raspuns.data)
+                
+                # Dacă am primit mai puțin de 1000 de rânduri, înseamnă că am ajuns la finalul arhivei
+                if len(raspuns.data) < step:
+                    break
+                    
+                start += step
+
+            if not all_data: return pd.DataFrame()
+            
+            df = pd.DataFrame(all_data)
+            df['data_extragere_dt'] = df['data_extragere'].apply(parse_data_smart)
+            df = df.dropna(subset=['data_extragere_dt'])
+            df['data_extragere'] = df['data_extragere_dt'] # Formatăm unitar ca DateTime
+            
             return df
-        except:
+        except Exception as e:
+            st.error(f"Eroare preluare date din cloud: {e}")
             return pd.DataFrame()
 
     @staticmethod
@@ -147,7 +181,7 @@ if ultimele:
         with cols[i]:
             st.markdown(f"**{nume_joc}**")
             st.code(f"{date_ext['numere']}" + (f" + J: {date_ext['extra'][0]}" if date_ext.get('extra') else ""))
-            st.caption(f"📅 Data: {formateaza_data_ro(date_ext['data_extragere'])}")
+            st.caption(f"📅 {formateaza_data_ro(date_ext['data_extragere'])}")
 else:
     st.info("Baza de date se încarcă sau este goală.")
 
@@ -194,14 +228,14 @@ with col_res:
             
             verif = st.session_state.get('verif_gen', None)
             if verif:
-                st.caption(f"🔍 Performanță în arhivă verificată pe un total de {verif['total']} extrageri (conform filtrelor de mai jos).")
+                st.caption(f"🔍 Performanță verificată pe un total de {verif['total']} extrageri (conform filtrelor de mai jos).")
                 c1, c2, c3, c4 = st.columns(4)
                 c1.metric("Cat. I", verif["Cat_I"])
                 c2.metric("Cat. II", verif["Cat_II"])
                 c3.metric("Cat. III", verif["Cat_III"])
                 c4.metric("Cat. IV", verif["Cat_IV"])
     else:
-        st.info("👈 Setează filtrele și apasă butonul pentru a genera o variantă norocoasă.")
+        st.info("👈 Setează preferințele și apasă butonul pentru a genera o variantă norocoasă.")
 
 st.divider()
 
@@ -210,7 +244,7 @@ st.subheader("🔮 Verifică-ți Numerele Proprii")
 col_inp, col_inf = st.columns([1, 2])
 
 with col_inp:
-    numere_user = st.multiselect("Selectează numerele jucate de tine:", list(range(1, MotorLoto.REGULI[joc_selectat]["max"]+1)))
+    numere_user = st.multiselect("Selectează numerele tale norocoase:", list(range(1, MotorLoto.REGULI[joc_selectat]["max"]+1)))
 
 with col_inf:
     if numere_user:
@@ -220,16 +254,16 @@ with col_inf:
                 aparitii = df_brut[df_brut['numere'].apply(lambda x: n in x)]
                 if not aparitii.empty:
                     an_top = aparitii['data_extragere'].dt.year.value_counts().idxmax()
-                    st.write(f"✅ Numărul **{n}**: a fost extras de **{len(aparitii)}** ori în istorie. Anul de vârf a fost **{int(an_top)}**.")
+                    st.write(f"✅ Numărul **{n}**: a fost extras de **{len(aparitii)}** ori. Anul de vârf a fost **{int(an_top)}**.")
                 else:
-                    st.write(f"❌ Numărul **{n}**: nu a fost extras niciodată în baza de date curentă.")
+                    st.write(f"❌ Numărul **{n}**: nu a fost extras în perioada analizată.")
 
 st.divider()
 
 # --- ANALIZA NUMERELOR ---
 st.subheader(f"📈 Analiza Numerelor: {joc_selectat}")
 c_an, c_luna = st.columns(2)
-with c_an: an_f = st.selectbox("Selectează Anul:", [None] + list(range(2026, 1999, -1)), format_func=lambda x: "Toată Istoria" if x is None else str(x), key='an_f')
+with c_an: an_f = st.selectbox("Selectează Anul:", [None] + list(range(2026, 1992, -1)), format_func=lambda x: "Toată Istoria" if x is None else str(x), key='an_f')
 with c_luna: 
     luna_n = st.selectbox("Selectează Luna:", [None] + list(dict_luni.values()), format_func=lambda x: "Tot Anul" if x is None else x, key='ln_n')
     luna_f = [k for k, v in dict_luni.items() if v == luna_n][0] if luna_n else None
