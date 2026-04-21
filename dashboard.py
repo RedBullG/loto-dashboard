@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 from supabase import create_client, Client
 
-# --- 1. CONFIGURARE SUPABASE ---
+# --- 1. CONFIGURARE SUPABASE (SECURIZAT PENTRU CLOUD) ---
 SUPABASE_URL = st.secrets["SUPABASE_URL"]
 SUPABASE_KEY = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -22,9 +22,21 @@ def formateaza_data_ro(data_iso):
 # --- 2. MOTORUL LOGIC MULTI-JOC ---
 class MotorLoto:
     REGULI = {
-        "Loto 6/49": {"n": 6, "max": 49, "suma_min": 120, "suma_max": 180, "info_suma": "120 - 180 (Media istorică)"},
-        "Loto 5/40": {"n": 6, "max": 40, "suma_min": 95, "suma_max": 150, "info_suma": "90 - 110 (Frecvent pentru 5/40)"},
-        "Joker": {"n": 5, "max": 45, "suma_min": 85, "suma_max": 145, "extra": True, "extra_max": 20, "info_suma": "85 - 145 (Suma celor 5 numere)"}
+        "Loto 6/49": {
+            "n": 6, "max": 49, "suma_min": 120, "suma_max": 180, "extra": False, 
+            "info_suma": "120 - 180 (Media istorică)",
+            "descriere": "Suma numerelor câștigătoare tinde să se plaseze des în intervalul mediu (120 - 180), dar numerele sunt distribuite aleatoriu."
+        },
+        "Loto 5/40": {
+            "n": 6, "max": 40, "suma_min": 95, "suma_max": 150, "extra": False, 
+            "info_suma": "90 - 110 (Frecvent pentru 5/40)",
+            "descriere": "Suma este mai mică, frecvent în zona de 90-110, având în vedere numărul mai mic de bile."
+        },
+        "Joker": {
+            "n": 5, "max": 45, "suma_min": 85, "suma_max": 145, "extra": True, "extra_max": 20, 
+            "info_suma": "85 - 145 (Suma celor 5 numere)",
+            "descriere": "Suma celor 5 numere principale: Cele mai multe extrageri au o sumă cuprinsă între 85 și 145. Acest lucru se datorează faptului că probabilitatea ca toate numerele să fie foarte mici (ex: sub 10) sau toate foarte mari (ex: peste 35) este extrem de scăzută."
+        }
     }
 
     @staticmethod
@@ -86,6 +98,7 @@ st.set_page_config(page_title="Analiză Statistică Loto", page_icon="🎲", lay
 st.title("📊 Analiză Statistică Loto")
 
 # --- ULTIMELE REZULTATE ---
+st.subheader("📡 Ultimele Extrageri Oficiale")
 ultimele = {}
 try:
     for j in ["Loto 6/49", "Loto 5/40", "Joker"]:
@@ -95,10 +108,17 @@ except: pass
 
 if ultimele:
     cols = st.columns(3)
-    for i, j in enumerate(ultimele):
+    for i, j in enumerate(["Loto 6/49", "Loto 5/40", "Joker"]):
         with cols[i]:
-            st.metric(j, str(ultimele[j]['numere']))
-            st.caption(f"📅 {formateaza_data_ro(ultimele[j]['data_extragere'])}")
+            if j in ultimele:
+                date_ext = ultimele[j]
+                st.markdown(f"**{j}**")
+                st.code(f"{date_ext['numere']}" + (f" + Joker: {date_ext['extra'][0]}" if date_ext.get('extra') else ""))
+                st.caption(f"📅 Data: {formateaza_data_ro(date_ext['data_extragere'])}")
+            else:
+                st.markdown(f"**{j}**\nNicio dată disponibilă.")
+else:
+    st.info("Baza de date este goală sau se încarcă.")
 
 st.divider()
 
@@ -111,7 +131,16 @@ with col_set:
     joc_selectat = st.selectbox("Joc:", list(MotorLoto.REGULI.keys()))
     
     st.info(f"💡 Suma optimă {joc_selectat}: **{MotorLoto.REGULI[joc_selectat]['info_suma']}**")
-    suma_dorita = st.number_input("Suma dorită (0 = Auto):", 0, 300, 0)
+    
+    # Aici este tooltip-ul pentru informații suplimentare
+    suma_dorita = st.number_input(
+        "Suma exactă (Lasă 0 pt. Auto):", 
+        min_value=0, 
+        max_value=300, 
+        value=0, 
+        step=1,
+        help=MotorLoto.REGULI[joc_selectat]['descriere']
+    )
     
     if st.button("🚀 Generează"):
         an_v = st.session_state.get('an_f', None)
@@ -129,11 +158,11 @@ with col_res:
 st.divider()
 
 # --- SECȚIUNE NOUĂ: VERIFICĂ NUMERELE TALE ---
-st.subheader("🔮 Verifică-ți Numerele Proprie")
+st.subheader("🔮 Verifică-ți Numerele Proprii")
 col_inp, col_inf = st.columns([1, 2])
 
 with col_inp:
-    numere_user = st.multiselect("Alege 5-6 numere:", list(range(1, MotorLoto.REGULI[joc_selectat]["max"]+1)))
+    numere_user = st.multiselect("Alege numerele jucate:", list(range(1, MotorLoto.REGULI[joc_selectat]["max"]+1)))
 
 with col_inf:
     if numere_user:
