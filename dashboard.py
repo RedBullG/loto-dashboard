@@ -93,8 +93,7 @@ class MotorLoto:
     @staticmethod
     def genereaza_varianta(tip_joc, luna=None, an=None, suma_tinta=None):
         r = MotorLoto.REGULI[tip_joc]
-        stats = MotorLoto.obtine_statistici_avansate(tip_joc, luna, an)
-        frecventa = stats[4] if stats else None
+        _, _, _, _, frecventa = MotorLoto.obtine_statistici_avansate(tip_joc, luna, an)
         numere_hot = frecventa.head(15).index.tolist() if frecventa is not None else []
         incercari = 0
         while incercari < 50000:
@@ -205,35 +204,42 @@ st.divider()
 
 # --- SECȚIUNE: VERIFICĂ NUMERELE PROPRII ---
 st.subheader("🔮 Verifică-ți Numerele Proprii")
-col_inp, col_inf = st.columns([1, 2])
 
+# Injectăm CSS pentru a face checkbox-urile să curgă orizontal ca într-o grilă
+st.markdown("""
+<style>
+div[data-testid="stCheckbox"] {
+    display: inline-block;
+    min-width: 65px;
+    margin-bottom: 5px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+col_inp, col_inf = st.columns([1, 2])
 with col_inp:
     n_cerute = MotorLoto.REGULI[joc_selectat]["n"]
-    max_n = MotorLoto.REGULI[joc_selectat]["max"]
     st.markdown(f"**Biletul tău ({joc_selectat})**")
     st.caption(f"Bifează exact {n_cerute} numere din grila de mai jos:")
     
-    # Grila de numere (7 coloane pentru aspect echilibrat)
-    cols_grid = st.columns(7)
+    # Generăm checkbox-urile direct, CSS-ul le va așeza în grilă automat!
     numere_user = []
+    max_n = MotorLoto.REGULI[joc_selectat]["max"]
     for i in range(1, max_n + 1):
-        with cols_grid[(i-1) % 7]:
-            if st.checkbox(str(i), key=f"chk_{joc_selectat}_{i}"):
-                numere_user.append(i)
-                
+        if st.checkbox(str(i), key=f"chk_{joc_selectat}_{i}"):
+            numere_user.append(i)
+            
     if len(numere_user) > n_cerute:
-        st.warning(f"⚠️ Ai selectat {len(numere_user)} numere. Te rugăm să bifezi doar {n_cerute}.")
+        st.warning(f"⚠️ Ai selectat {len(numere_user)} numere. Te rugăm să lași bifate doar {n_cerute}.")
 
     extra_user = []
     if MotorLoto.REGULI[joc_selectat].get("extra"):
         st.markdown("---")
         st.markdown("**Alege Joker-ul:**")
         max_extra = MotorLoto.REGULI[joc_selectat]["extra_max"]
-        cols_joker = st.columns(5)
         for i in range(1, max_extra + 1):
-            with cols_joker[(i-1) % 5]:
-                if st.checkbox(str(i), key=f"joker_chk_{i}"):
-                    extra_user.append(i)
+            if st.checkbox(str(i), key=f"joker_chk_{i}"):
+                extra_user.append(i)
         
         if len(extra_user) > 1:
             st.error("Selectează un singur Joker!")
@@ -250,7 +256,7 @@ with col_inf:
                     st.write(f"🔹 **{n}**: extras de **{len(aparitii)}** ori. Anul de vârf: **{int(an_top)}**.")
                 else:
                     st.write(f"❌ **{n}**: nu a fost extras în perioada analizată.")
-        
+                    
         joker_ready = (len(extra_user) == 1) if MotorLoto.REGULI[joc_selectat].get("extra") else True
         if len(numere_user) == n_cerute and joker_ready:
             st.markdown("---")
