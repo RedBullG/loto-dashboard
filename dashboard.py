@@ -205,13 +205,13 @@ st.divider()
 # --- SECȚIUNE: VERIFICĂ NUMERELE PROPRII ---
 st.subheader("🔮 Verifică-ți Numerele Proprii")
 
-# CSS pentru a forța elementele să se așeze sub formă de grilă fluidă în interiorul Popup-ului
+# CSS pentru a forța crearea a fix 4 coloane (22% lățime per element)
 st.markdown("""
 <style>
-div[data-testid="stPopoverBody"] div[data-testid="stVerticalBlock"] > div {
+div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] {
     display: inline-block;
-    width: 65px;
-    margin: 2px;
+    width: 22%; 
+    margin-bottom: 8px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -223,14 +223,12 @@ with col_inp:
     st.markdown(f"**Biletul tău ({joc_selectat})**")
     
     numere_user = []
-    # Folosim st.popover care creează un buton ce deschide un popup nativ Streamlit
     with st.popover(f"🔢 Deschide Grila de Numere", use_container_width=True):
         st.caption(f"Bifează exact {n_cerute} numere:")
         for i in range(1, max_n + 1):
             if st.checkbox(str(i), key=f"chk_{joc_selectat}_{i}"):
                 numere_user.append(i)
 
-    # Afișăm statusul selecției direct sub butonul de popup
     if len(numere_user) > n_cerute:
         st.warning(f"⚠️ Ai bifat {len(numere_user)} numere. Lasă selectate doar {n_cerute}.")
     elif len(numere_user) > 0:
