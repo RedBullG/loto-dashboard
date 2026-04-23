@@ -93,7 +93,8 @@ class MotorLoto:
     @staticmethod
     def genereaza_varianta(tip_joc, luna=None, an=None, suma_tinta=None):
         r = MotorLoto.REGULI[tip_joc]
-        _, _, _, _, frecventa = MotorLoto.obtine_statistici_avansate(tip_joc, luna, an)
+        stats = MotorLoto.obtine_statistici_avansate(tip_joc, luna, an)
+        frecventa = stats[4] if stats else None
         numere_hot = frecventa.head(15).index.tolist() if frecventa is not None else []
         incercari = 0
         while incercari < 50000:
@@ -205,39 +206,68 @@ st.divider()
 # --- SECȚIUNE: VERIFICĂ NUMERELE PROPRII ---
 st.subheader("🔮 Verifică-ți Numerele Proprii")
 col_inp, col_inf = st.columns([1, 2])
+
 with col_inp:
     n_cerute = MotorLoto.REGULI[joc_selectat]["n"]
+    max_n = MotorLoto.REGULI[joc_selectat]["max"]
     st.markdown(f"**Biletul tău ({joc_selectat})**")
-    numere_user = st.multiselect(f"Alege {n_cerute} numere:", list(range(1, MotorLoto.REGULI[joc_selectat]["max"]+1)), max_selections=n_cerute)
+    st.caption(f"Bifează exact {n_cerute} numere din grila de mai jos:")
+    
+    # Grila de numere (7 coloane pentru aspect echilibrat)
+    cols_grid = st.columns(7)
+    numere_user = []
+    for i in range(1, max_n + 1):
+        with cols_grid[(i-1) % 7]:
+            if st.checkbox(str(i), key=f"chk_{joc_selectat}_{i}"):
+                numere_user.append(i)
+                
+    if len(numere_user) > n_cerute:
+        st.warning(f"⚠️ Ai selectat {len(numere_user)} numere. Te rugăm să bifezi doar {n_cerute}.")
+
     extra_user = []
     if MotorLoto.REGULI[joc_selectat].get("extra"):
-        extra_val = st.selectbox("Alege Joker-ul:", [None] + list(range(1, MotorLoto.REGULI[joc_selectat]["extra_max"]+1)))
-        if extra_val: extra_user = [extra_val]
+        st.markdown("---")
+        st.markdown("**Alege Joker-ul:**")
+        max_extra = MotorLoto.REGULI[joc_selectat]["extra_max"]
+        cols_joker = st.columns(5)
+        for i in range(1, max_extra + 1):
+            with cols_joker[(i-1) % 5]:
+                if st.checkbox(str(i), key=f"joker_chk_{i}"):
+                    extra_user.append(i)
+        
+        if len(extra_user) > 1:
+            st.error("Selectează un singur Joker!")
 
 with col_inf:
     if numere_user:
         df_brut = MotorLoto.obtine_date_brute(joc_selectat)
         st.markdown("**📊 Performanța Individuală:**")
         if not df_brut.empty:
-            for n in numere_user:
+            for n in sorted(numere_user):
                 aparitii = df_brut[df_brut['numere'].apply(lambda x: n in x)]
                 if not aparitii.empty:
                     an_top = aparitii['data_extragere'].dt.year.value_counts().idxmax()
                     st.write(f"🔹 **{n}**: extras de **{len(aparitii)}** ori. Anul de vârf: **{int(an_top)}**.")
-        if len(numere_user) == n_cerute:
+                else:
+                    st.write(f"❌ **{n}**: nu a fost extras în perioada analizată.")
+        
+        joker_ready = (len(extra_user) == 1) if MotorLoto.REGULI[joc_selectat].get("extra") else True
+        if len(numere_user) == n_cerute and joker_ready:
             st.markdown("---")
             st.markdown("**🏆 Istoric de Câștig al Variantei:**")
             verif_user = MotorLoto.analiza_performanta_istorica(numere_user, extra_user, joc_selectat)
             if verif_user:
                 st.caption(f"Verificat pe {verif_user['total']} extrageri istorice.")
                 cu1, cu2, cu3, cu4 = st.columns(4)
-                cu1.metric("Cat. I", verif_user["Cat_I"]); cu2.metric("Cat. II", verif_user["Cat_II"])
-                cu3.metric("Cat. III", verif_user["Cat_III"]); cu4.metric("Cat. IV", verif_user["Cat_IV"])
+                cu1.metric("Cat. I", verif_user["Cat_I"])
+                cu2.metric("Cat. II", verif_user["Cat_II"])
+                cu3.metric("Cat. III", verif_user["Cat_III"])
+                cu4.metric("Cat. IV", verif_user["Cat_IV"])
                 tot_c = sum([verif_user[k] for k in ["Cat_I", "Cat_II", "Cat_III", "Cat_IV"]])
                 if tot_c > 0: st.success(f"Bilet câștigător de **{tot_c}** ori!")
                 else: st.warning("Biletul nu a câștigat nicio categorie până acum.")
     else:
-        st.info(f"💡 Selectează exact {n_cerute} numere pentru backtesting complet.")
+        st.info(f"💡 Bifează exact {n_cerute} numere pentru backtesting complet.")
 
 st.divider()
 
