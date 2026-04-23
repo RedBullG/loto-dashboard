@@ -205,13 +205,18 @@ st.divider()
 # --- SECȚIUNE: VERIFICĂ NUMERELE PROPRII ---
 st.subheader("🔮 Verifică-ți Numerele Proprii")
 
-# CSS pentru a forța crearea a fix 4 coloane (22% lățime per element)
+# CSS pentru a forța crearea coloanelor și a PREVENI ruperea textului pe rânduri
 st.markdown("""
 <style>
 div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] {
     display: inline-block;
     width: 22%; 
+    min-width: 45px; /* Lățime minimă pentru siguranță */
     margin-bottom: 8px;
+}
+div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] p {
+    white-space: nowrap !important; /* Previne ruperea textului (ex: 1\n0) */
+    word-break: keep-all !important;
 }
 </style>
 """, unsafe_allow_html=True)
