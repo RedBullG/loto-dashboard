@@ -205,13 +205,13 @@ st.divider()
 # --- SECȚIUNE: VERIFICĂ NUMERELE PROPRII ---
 st.subheader("🔮 Verifică-ți Numerele Proprii")
 
-# Injectăm CSS pentru a face checkbox-urile să curgă orizontal ca într-o grilă
+# CSS pentru a forța elementele să se așeze sub formă de grilă fluidă în interiorul Popup-ului
 st.markdown("""
 <style>
-div[data-testid="stCheckbox"] {
+div[data-testid="stPopoverBody"] div[data-testid="stVerticalBlock"] > div {
     display: inline-block;
-    min-width: 65px;
-    margin-bottom: 5px;
+    width: 65px;
+    margin: 2px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -219,30 +219,37 @@ div[data-testid="stCheckbox"] {
 col_inp, col_inf = st.columns([1, 2])
 with col_inp:
     n_cerute = MotorLoto.REGULI[joc_selectat]["n"]
-    st.markdown(f"**Biletul tău ({joc_selectat})**")
-    st.caption(f"Bifează exact {n_cerute} numere din grila de mai jos:")
-    
-    # Generăm checkbox-urile direct, CSS-ul le va așeza în grilă automat!
-    numere_user = []
     max_n = MotorLoto.REGULI[joc_selectat]["max"]
-    for i in range(1, max_n + 1):
-        if st.checkbox(str(i), key=f"chk_{joc_selectat}_{i}"):
-            numere_user.append(i)
-            
+    st.markdown(f"**Biletul tău ({joc_selectat})**")
+    
+    numere_user = []
+    # Folosim st.popover care creează un buton ce deschide un popup nativ Streamlit
+    with st.popover(f"🔢 Deschide Grila de Numere", use_container_width=True):
+        st.caption(f"Bifează exact {n_cerute} numere:")
+        for i in range(1, max_n + 1):
+            if st.checkbox(str(i), key=f"chk_{joc_selectat}_{i}"):
+                numere_user.append(i)
+
+    # Afișăm statusul selecției direct sub butonul de popup
     if len(numere_user) > n_cerute:
-        st.warning(f"⚠️ Ai selectat {len(numere_user)} numere. Te rugăm să lași bifate doar {n_cerute}.")
+        st.warning(f"⚠️ Ai bifat {len(numere_user)} numere. Lasă selectate doar {n_cerute}.")
+    elif len(numere_user) > 0:
+        st.success(f"Bile: {', '.join(map(str, numere_user))}")
 
     extra_user = []
     if MotorLoto.REGULI[joc_selectat].get("extra"):
         st.markdown("---")
-        st.markdown("**Alege Joker-ul:**")
-        max_extra = MotorLoto.REGULI[joc_selectat]["extra_max"]
-        for i in range(1, max_extra + 1):
-            if st.checkbox(str(i), key=f"joker_chk_{i}"):
-                extra_user.append(i)
+        with st.popover("🃏 Alege Joker-ul", use_container_width=True):
+            st.caption("Alege un singur Joker:")
+            max_extra = MotorLoto.REGULI[joc_selectat]["extra_max"]
+            for i in range(1, max_extra + 1):
+                if st.checkbox(str(i), key=f"joker_chk_{i}"):
+                    extra_user.append(i)
         
         if len(extra_user) > 1:
             st.error("Selectează un singur Joker!")
+        elif len(extra_user) == 1:
+            st.success(f"Joker: {extra_user[0]}")
 
 with col_inf:
     if numere_user:
@@ -256,7 +263,7 @@ with col_inf:
                     st.write(f"🔹 **{n}**: extras de **{len(aparitii)}** ori. Anul de vârf: **{int(an_top)}**.")
                 else:
                     st.write(f"❌ **{n}**: nu a fost extras în perioada analizată.")
-                    
+        
         joker_ready = (len(extra_user) == 1) if MotorLoto.REGULI[joc_selectat].get("extra") else True
         if len(numere_user) == n_cerute and joker_ready:
             st.markdown("---")
@@ -273,7 +280,7 @@ with col_inf:
                 if tot_c > 0: st.success(f"Bilet câștigător de **{tot_c}** ori!")
                 else: st.warning("Biletul nu a câștigat nicio categorie până acum.")
     else:
-        st.info(f"💡 Bifează exact {n_cerute} numere pentru backtesting complet.")
+        st.info(f"💡 Deschide grilele alăturate și bifează exact {n_cerute} numere pentru backtesting complet.")
 
 st.divider()
 
