@@ -249,11 +249,19 @@ with c_luna:
     luna_n = st.selectbox("Lună:", [None] + list(dict_luni.values()), format_func=lambda x: "Tot Anul" if x is None else x, key='ln_n')
     luna_f = [k for k, v in dict_luni.items() if v == luna_n][0] if luna_n else None
     st.session_state['luna_f'] = luna_f
+
 hot, cold, tot, nei, _ = MotorLoto.obtine_statistici_avansate(joc_selectat, luna_f, an_f)
+
 if tot > 0:
     st.caption(f"🔍 Analizate **{tot} de extrageri**.")
     ch, cc = st.columns(2)
-    with ch: st.dataframe(pd.DataFrame({"Număr": hot.index, "Apariții": hot.values}), use_container_width=True, hide_index=True)
-    with cc: st.dataframe(pd.DataFrame({"Număr": cold.index, "Apariții": cold.values}), use_container_width=True, hide_index=True)
+    with ch: 
+        st.write("🔥 **Top 10 Cel Mai Des Extrase**")
+        st.dataframe(pd.DataFrame({"Număr": hot.index, "Apariții": hot.values}), use_container_width=True, hide_index=True)
+    with cc: 
+        st.write("❄️ **Top 10 Cel Mai Rar Extrase**")
+        st.dataframe(pd.DataFrame({"Număr": cold.index, "Apariții": cold.values}), use_container_width=True, hide_index=True)
+    if nei:
+        st.warning(f"⚠️ **Numere care NU s-au extras absolut deloc în perioada analizată:** {', '.join(map(str, nei))}")
 else:
     st.warning("⚠️ Nu există date.")
