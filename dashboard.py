@@ -42,9 +42,9 @@ class MotorLoto:
             "descriere": "Suma numerelor câștigătoare tinde să se plaseze des în intervalul mediu (120 - 180), dar numerele sunt distribuite aleatoriu."
         },
         "Loto 5/40": {
-            "n": 6, "max": 40, "suma_min": 95, "suma_max": 150, "extra": False, 
-            "info_suma": "90 - 110",
-            "descriere": "Suma este mai mică, frecvent în zona de 90-110, având în vedere numărul mai mic de bile."
+            "n": 5, "max": 40, "suma_min": 75, "suma_max": 130, "extra": False, 
+            "info_suma": "75 - 130",
+            "descriere": "Suma celor 5 numere alese pe bilet. Frecvent se situează în intervalul mediu de 75 - 130."
         },
         "Joker": {
             "n": 5, "max": 45, "suma_min": 85, "suma_max": 145, "extra": True, "extra_max": 20, 
@@ -98,6 +98,7 @@ class MotorLoto:
         incercari = 0
         while incercari < 50000:
             incercari += 1
+            # Dacă avem suficiente numere Hot, garantăm includerea a 3 dintre ele
             if len(numere_hot) >= 3:
                 baza = random.sample(numere_hot, 3)
                 posibile = [n for n in range(1, r["max"] + 1) if n not in baza]
@@ -105,9 +106,11 @@ class MotorLoto:
                 varianta = sorted(baza + restul)
             else:
                 varianta = sorted(random.sample(range(1, r["max"] + 1), r["n"]))
+                
             suma = sum(varianta)
             if (suma == suma_tinta if suma_tinta else r["suma_min"] <= suma <= r["suma_max"]):
                 pare = sum(1 for n in varianta if n % 2 == 0)
+                # Condiții echilibru par/impar optimizate în funcție de numărul de bile cerut (6 sau 5)
                 if (r["n"] == 6 and pare in [2,3,4]) or (r["n"] == 5 and pare in [2,3]):
                     res = {"numere": varianta, "suma": suma, "extra": [random.randint(1, r["extra_max"])] if r.get("extra") else []}
                     return res
@@ -129,8 +132,10 @@ class MotorLoto:
                 elif potriviri == 4: stats["Cat_III"] += 1
                 elif potriviri == 3: stats["Cat_IV"] += 1
             elif tip_joc == "Loto 5/40":
-                if potriviri >= 5: stats["Cat_I"] += 1
+                # La 5/40 pe bilet pui 5 numere. Dacă toate cele 5 se află printre cele 6 extrase = Cat I.
+                if potriviri == 5: stats["Cat_I"] += 1
                 elif potriviri == 4: stats["Cat_II"] += 1
+                elif potriviri == 3: stats["Cat_III"] += 1
             elif tip_joc == "Joker":
                 extra_match = extra_gen[0] == ex['extra'][0] if extra_gen and ex['extra'] else False
                 if potriviri == 5 and extra_match: stats["Cat_I"] += 1
@@ -205,17 +210,16 @@ st.divider()
 # --- SECȚIUNE: VERIFICĂ NUMERELE PROPRII ---
 st.subheader("🔮 Verifică-ți Numerele Proprii")
 
-# CSS pentru a forța crearea coloanelor și a PREVENI ruperea textului pe rânduri
 st.markdown("""
 <style>
 div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] {
     display: inline-block;
     width: 22%; 
-    min-width: 45px; /* Lățime minimă pentru siguranță */
+    min-width: 45px;
     margin-bottom: 8px;
 }
 div[data-testid="stPopoverBody"] div[data-testid="stCheckbox"] p {
-    white-space: nowrap !important; /* Previne ruperea textului (ex: 1\n0) */
+    white-space: nowrap !important;
     word-break: keep-all !important;
 }
 </style>
