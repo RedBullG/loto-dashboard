@@ -1,16 +1,18 @@
 import sys
 import os
 import requests
+import json
 
 if __name__ == "__main__":
-    # Preluăm cele 3 argumente transmise de GitHub
-    tip_joc = sys.argv[1]       # '6/49', '5/40' sau 'Joker'
-    data_input = sys.argv[2]     # Data
-    numere_raw = sys.argv[3]     # Numerele ca text
+    # Preluăm cele 3 argumente transmise de GitHub Form
+    tip_joc_input = sys.argv[1]   # '6/49', '5/40' sau 'Joker'
+    data_input = sys.argv[2]       # Data (YYYY-MM-DD)
+    numere_raw = sys.argv[3]       # Numerele introduse ca text
     
     supabase_url = os.environ.get("SUPABASE_URL")
     supabase_key = os.environ.get("SUPABASE_KEY")
     
+    url = f"{supabase_url}/rest/v1/rezultate_oficiale"
     headers = {
         "apikey": supabase_key,
         "Authorization": f"Bearer {supabase_key}",
@@ -18,53 +20,51 @@ if __name__ == "__main__":
         "Prefer": "return=minimal"
     }
 
-    # --- LOGICA ÎN FUNCȚIE DE TIPUL DE JOC ---
-    
-    if tip_joc == "6/49":
-        numere = [int(n.strip()) for n in numere_raw.split(",")]
-        numere.sort()
-        payload = {
-            "data": data_input,
-            "numere": numere,
-            "suma": sum(numere)
-        }
-        url = f"{supabase_url}/rest/v1/loto_649" # Numele tabelei tale pentru 6/49
+    # Formatăm tipul de joc exact cum apare în tabela ta
+    tip_joc_map = {
+        "6/49": "Loto 6/49",
+        "5/40": "Loto 5/40",
+        "Joker": "Joker"
+    }
+    tip_joc_final = tip_joc_map.get(tip_joc_input)
 
-    elif tip_joc == "5/40":
-        numere = [int(n.strip()) for n in numere_raw.split(",")]
-        numere.sort()
-        payload = {
-            "data": data_input,
-            "numere": numere,
-            "suma": sum(numere)
-        }
-        url = f"{supabase_url}/rest/v1/loto_540" # Numele tabelei tale pentru 5/40
+    # Inițializăm structura de date pentru Supabase
+    numere_principale = []
+    numere_extra = []
 
-    elif tip_joc == "Joker":
-        # Pentru Joker, poți introduce numerele în formatul: 5,12,19,23,40 + 14
-        # Împărțim textul în zona numerelor principale și a Joker-ului
-        try:
-            principale_raw, joker_raw = numere_raw.split("+")
-            numere_principale = [int(n.strip()) for n in principale_raw.split(",")]
-            numere_principale.sort()
-            numar_joker = int(joker_raw.strip())
-        except ValueError:
-            print("❌ Format greșit pentru Joker! Folosește: 1,2,3,4,5 + 20")
+    # Procesăm numerele în funcție de joc
+    if tip_joc_input == "Joker":
+        # Format așteptat la input de pe telefon: 3,17,28,38,40 + 11
+        if "+" not in numere_raw:
+            print("❌ Pentru Joker adaugă bila extra cu '+'. Exemplu: 3,17,28,38,40 + 11")
             sys.exit(1)
             
-        payload = {
-            "data": data_input,
-            "numere_principale": numere_principale,
-            "joker": numar_joker,
-            "suma_principale": sum(numere_principale)
-        }
-        url = f"{supabase_url}/rest/v1/loto_joker" # Numele tabelei tale pentru Joker
+        principale_part, extra_part = numere_raw.split("+")
+        
+        numere_principale = [int(n.strip()) for n in principale_part.split(",") if n.strip()]
+        numere_principale.sort()
+        
+        # Bila de Joker se salvează tot ca un array cu un singur element [X] conform tabelei tale
+        numere_extra = [int(extra_part.strip())]
+    else:
+        # Pentru 6/49 și 5/40: 2,12,15,20,27,36
+        numere_principale = [int(n.strip()) for n in numere_raw.split(",") if n.strip()]
+        numere_principale.sort()
+        numere_extra = [] # Rămâne array gol [] exact ca în screenshot
 
-    # --- TRIMITEREA CĂTRE SUPABASE ---
+    # Payload-ul exact pentru structura bazei tale de date
+    payload = {
+        "tip_joc": tip_joc_final,
+        "data_extragere": data_input,
+        "numere": numere_principale,  # Trimis ca array de întregi
+        "extra": numere_extra          # Trimis ca array de întregi ([] sau [X])
+    }
+    
+    # Trimitere request către REST API Supabase
     response = requests.post(url, json=payload, headers=headers)
     
     if response.status_code in [200, 201]:
-        print(f"✅ [{tip_joc}] Update realizat cu succes pentru data {data_input}!")
+        print(f"✅ [{tip_joc_final}] Inserat cu succes: {data_input} -> {numere_principale} | Extra: {numere_extra}")
     else:
-        print(f"❌ Eroare la salvarea în Supabase: {response.text}")
+        print(f"❌ Eroare HTTP {response.status_code}: {response.text}")
         sys.exit(1)
