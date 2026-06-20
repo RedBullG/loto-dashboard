@@ -3,12 +3,20 @@ name: Update Supabase Loto
 on:
   workflow_dispatch:
     inputs:
+      tip_joc:
+        type: choice
+        description: 'Alege tipul de joc'
+        required: true
+        options:
+          - '6/49'
+          - '5/40'
+          - 'Joker'
       data_extragere:
         description: 'Data (YYYY-MM-DD)'
         required: true
         default: '2026-06-21'
       numere:
-        description: 'Cele 6 numere separate prin virgulă (ex: 3,5,7,10,18,25)'
+        description: 'Numerele (Ex 6/49: 3,5,7... | Ex Joker: 1,2,3,4,5 + 20)'
         required: true
 
 jobs:
@@ -25,11 +33,11 @@ jobs:
 
       - name: Instalare Dependențe
         run: |
-          pip install requests supabase
+          pip install requests
 
       - name: Executare Script Update
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
-          python .github/scripts/update_database.py "${{ github.event.inputs.data_extragere }}" "${{ github.event.inputs.numere }}"
+          python .github/scripts/update_database.py "${{ github.event.inputs.tip_joc }}" "${{ github.event.inputs.data_extragere }}" "${{ github.event.inputs.numere }}"
