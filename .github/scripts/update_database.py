@@ -1,17 +1,20 @@
 import sys
-import os
 import requests
 import json
 
 if __name__ == "__main__":
-    # Preluăm cele 3 argumente transmise de GitHub Form
+    # Preluăm toate cele 5 argumente transmise direct din linia de comandă GitHub
     tip_joc_input = sys.argv[1]   # '6/49', '5/40' sau 'Joker'
     data_input = sys.argv[2]       # Data (YYYY-MM-DD)
     numere_raw = sys.argv[3]       # Numerele introduse ca text
+    supabase_url = sys.argv[4]     # URL-ul curățat trimis din Bash
+    supabase_key = sys.argv[5]     # KEY-ul curățat trimis din Bash
     
-    supabase_url = os.environ.get("SUPABASE_URL").strip()
-    supabase_key = os.environ.get("SUPABASE_KEY").strip()
-    
+    # Verificare rapidă de siguranță
+    if not supabase_url or not supabase_key:
+        print("❌ Eroare: URL-ul sau KEY-ul pentru Supabase nu au fost găsite în argumente!")
+        sys.exit(1)
+        
     url = f"{supabase_url}/rest/v1/rezultate_oficiale"
     headers = {
         "apikey": supabase_key,
