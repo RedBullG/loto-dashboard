@@ -7,10 +7,11 @@ if __name__ == "__main__":
     tip_joc_input = sys.argv[1]   # '6/49', '5/40' sau 'Joker'
     data_input = sys.argv[2]       # Data (YYYY-MM-DD)
     numere_raw = sys.argv[3]       # Numerele introduse ca text
-    supabase_url = sys.argv[4]     # URL-ul curățat trimis din Bash
-    supabase_key = sys.argv[5]     # KEY-ul curățat trimis din Bash
     
-    # Verificare rapidă de siguranță
+    # Adăugăm .strip() direct pe argumente ca să ștergem instant orice Enter (\n) ascuns din GitHub Secrets
+    supabase_url = sys.argv[4].strip().replace("\n", "").replace("\r", "")
+    supabase_key = sys.argv[5].strip().replace("\n", "").replace("\r", "")
+    
     if not supabase_url or not supabase_key:
         print("❌ Eroare: URL-ul sau KEY-ul pentru Supabase nu au fost găsite în argumente!")
         sys.exit(1)
