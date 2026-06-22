@@ -9,8 +9,8 @@ if __name__ == "__main__":
     data_input = sys.argv[2]       # Data (YYYY-MM-DD)
     numere_raw = sys.argv[3]       # Numerele introduse ca text
     
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_KEY")
+    supabase_url = os.environ.get("SUPABASE_URL").strip()
+    supabase_key = os.environ.get("SUPABASE_KEY").strip()
     
     url = f"{supabase_url}/rest/v1/rezultate_oficiale"
     headers = {
