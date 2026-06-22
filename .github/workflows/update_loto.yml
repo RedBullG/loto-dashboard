@@ -36,5 +36,4 @@ jobs:
           pip install requests
 
       - name: Executare Script Update
-        run: |
-          python .github/scripts/update_database.py "${{ github.event.inputs.tip_joc }}" "${{ github.event.inputs.data_extragere }}" "${{ github.event.inputs.numere }}" "${{ secrets.SUPABASE_URL }}" "${{ secrets.SUPABASE_KEY }}"
+        run: python .github/scripts/update_database.py "${{ github.event.inputs.tip_joc }}" "${{ github.event.inputs.data_extragere }}" "${{ github.event.inputs.numere }}" "${{ secrets.SUPABASE_URL }}" "${{ secrets.SUPABASE_KEY }}"
